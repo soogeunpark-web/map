@@ -1,0 +1,493 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>지도 시각화 만들기</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
+<style>
+:root{
+  --bg:#e9ecf1; --paper:#ffffff; --ink:#151821; --ink2:#454b59; --muted:#7a8191; --line:#e3e6ec;
+  --red:#d61f4f; --red-soft:#fde7ee; --blue:#1f78b4; --blue-soft:#e4f0f8; --amber:#f2b134; --u:16px;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);overflow:hidden;
+  font-family:Pretendard,-apple-system,"Apple SD Gothic Neo","Malgun Gothic","Noto Sans KR",system-ui,sans-serif;
+  -webkit-font-smoothing:antialiased;word-break:keep-all}
+#stage{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);background:var(--paper);
+  box-shadow:0 10px 40px rgba(20,25,40,.14);overflow:hidden;border-radius:calc(var(--u)*.4)}
+.slide{position:absolute;inset:0;display:none;padding:calc(var(--u)*5.2) calc(var(--u)*6.4) calc(var(--u)*5)}
+.slide.active{display:block;animation:fade .35s ease}
+@keyframes fade{from{opacity:0;transform:translateY(calc(var(--u)*.4))}to{opacity:1;transform:none}}
+
+/* type */
+.kicker{font-size:calc(var(--u)*1.15);font-weight:700;color:var(--red);letter-spacing:.02em;margin-bottom:calc(var(--u)*1)}
+h1{font-size:calc(var(--u)*4.4);line-height:1.18;margin:0;letter-spacing:-.03em;font-weight:800}
+h2{font-size:calc(var(--u)*2.9);line-height:1.25;margin:0 0 calc(var(--u)*2.6);letter-spacing:-.025em;font-weight:800}
+h3{font-size:calc(var(--u)*1.55);margin:0 0 calc(var(--u)*.7);letter-spacing:-.01em}
+p,li{font-size:calc(var(--u)*1.45);line-height:1.6;color:var(--ink2);margin:0}
+.lead{font-size:calc(var(--u)*1.8);line-height:1.55;color:var(--ink2)}
+.muted{color:var(--muted)}
+.red{color:var(--red)} .blue{color:var(--blue)}
+b{color:var(--ink)}
+ul.clean{list-style:none;padding:0;margin:0}
+ul.clean li{padding-left:calc(var(--u)*1.4);position:relative;margin-bottom:calc(var(--u)*.8)}
+ul.clean li:before{content:"";position:absolute;left:0;top:.68em;width:calc(var(--u)*.5);height:calc(var(--u)*.5);border-radius:50%;background:var(--red)}
+.foot{position:absolute;left:calc(var(--u)*6.4);bottom:calc(var(--u)*2.2);font-size:calc(var(--u)*.95);color:var(--muted)}
+
+/* layout helpers */
+.cols{display:grid;gap:calc(var(--u)*3.2)}
+.c2{grid-template-columns:1fr 1fr}.c3{grid-template-columns:repeat(3,1fr)}.c4{grid-template-columns:repeat(4,1fr)}
+.c64{grid-template-columns:1.25fr 1fr}
+.card{background:#f6f7fa;border:1px solid var(--line);border-radius:calc(var(--u)*.9);padding:calc(var(--u)*1.8) calc(var(--u)*2)}
+.card p{font-size:calc(var(--u)*1.25)}
+.num{font-size:calc(var(--u)*3.6);font-weight:800;letter-spacing:-.03em;line-height:1.05;color:var(--ink);font-variant-numeric:tabular-nums}
+.num small{font-size:.42em;font-weight:700;color:var(--muted);margin-left:.2em}
+.lbl{font-size:calc(var(--u)*1.1);color:var(--muted);margin-top:calc(var(--u)*.5)}
+.tag{display:inline-block;font-size:calc(var(--u)*.95);font-weight:700;padding:calc(var(--u)*.25) calc(var(--u)*.7);border-radius:99px;background:var(--red-soft);color:var(--red)}
+.tag.b{background:var(--blue-soft);color:var(--blue)}
+.step{font-size:calc(var(--u)*1);font-weight:800;color:var(--red);margin-bottom:calc(var(--u)*.6)}
+code,pre{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+pre{background:#151821;color:#e6e9f0;border-radius:calc(var(--u)*.8);padding:calc(var(--u)*1.5) calc(var(--u)*1.8);
+  font-size:calc(var(--u)*1.05);line-height:1.6;margin:0;white-space:pre;overflow:hidden}
+pre .k{color:#ff8fab}pre .c{color:#7f889c}pre .s{color:#9fd8a8}
+table{border-collapse:collapse;width:100%}
+td,th{font-size:calc(var(--u)*1.3);padding:calc(var(--u)*.75) calc(var(--u)*1);border-bottom:1px solid var(--line);text-align:left}
+th{color:var(--muted);font-weight:600;font-size:calc(var(--u)*1.05)}
+td.r,th.r{text-align:right;font-variant-numeric:tabular-nums}
+
+/* title slide */
+.slide.title.active{display:flex}
+.title{flex-direction:column;justify-content:center;background:
+  radial-gradient(circle at 85% 30%,rgba(214,31,79,.10),transparent 40%),
+  radial-gradient(circle at 70% 85%,rgba(31,120,180,.10),transparent 45%),var(--paper)}
+.title .hexart{position:absolute;right:calc(var(--u)*4);top:50%;transform:translateY(-50%);width:calc(var(--u)*36)}
+.title .who{margin-top:calc(var(--u)*3);font-size:calc(var(--u)*1.4);color:var(--muted)}
+
+/* bars */
+.bars{display:flex;flex-direction:column;gap:calc(var(--u)*.42)}
+.bar{display:grid;grid-template-columns:calc(var(--u)*6.5) 1fr calc(var(--u)*10);align-items:center;gap:calc(var(--u)*1);font-size:calc(var(--u)*1.15)}
+.bar .v small{color:var(--muted);font-size:.85em;margin-left:.4em}
+.bar .t{height:calc(var(--u)*1.1);background:#eef0f4;border-radius:calc(var(--u)*.3);position:relative;overflow:hidden}
+.bar .t i{position:absolute;inset:0 auto 0 0;background:var(--blue);border-radius:calc(var(--u)*.3)}
+.bar.hi .t i{background:var(--red)}
+.bar .v{white-space:nowrap;text-align:right;font-variant-numeric:tabular-nums;color:var(--ink2)}
+.bar .n{color:var(--ink)}
+.avgline{position:absolute;top:-4px;bottom:-4px;width:2px;background:var(--ink);opacity:.55}
+
+/* live map slides */
+.slide.live{padding:0;background:#f3f4f6}
+.live .bar-top{position:absolute;left:0;right:0;top:0;height:calc(var(--u)*4.2);display:flex;align-items:center;gap:calc(var(--u)*1.2);
+  padding:0 calc(var(--u)*2.2);background:var(--paper);border-bottom:1px solid var(--line);z-index:2}
+.live .bar-top .t{font-size:calc(var(--u)*1.5);font-weight:800;letter-spacing:-.02em}
+.live .bar-top .s{font-size:calc(var(--u)*1.1);color:var(--muted)}
+.live .bar-top a{margin-left:auto;font-size:calc(var(--u)*1.05);color:var(--blue);text-decoration:none;font-weight:700}
+.live iframe{position:absolute;left:0;top:calc(var(--u)*4.2);display:block;width:100%;height:calc(100% - var(--u)*4.2);border:0;background:#eef0f3}
+.live .loading{position:absolute;inset:calc(var(--u)*4.2) 0 0 0;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:calc(var(--u)*1.3)}
+
+/* chrome */
+#prog{position:fixed;left:0;bottom:0;height:3px;background:var(--red);transition:width .3s;z-index:20}
+#nav{position:fixed;right:14px;bottom:12px;display:flex;align-items:center;gap:6px;z-index:20;
+  background:rgba(255,255,255,.92);border:1px solid var(--line);border-radius:10px;padding:4px;box-shadow:0 4px 14px rgba(20,25,40,.12);
+  font-size:12px;color:var(--muted);opacity:.25;transition:opacity .2s}
+#nav:hover,body.onlive #nav{opacity:1}
+#nav button{border:0;background:transparent;font:inherit;font-size:14px;color:var(--ink);cursor:pointer;padding:6px 10px;border-radius:7px}
+#nav button:hover{background:#eef0f4}
+#cnt{min-width:46px;text-align:center;font-variant-numeric:tabular-nums}
+#notes{position:fixed;left:50%;bottom:56px;transform:translateX(-50%);width:min(860px,92vw);display:none;z-index:21;
+  background:rgba(21,24,33,.94);color:#e8ebf2;border-radius:12px;padding:14px 18px;font-size:14px;line-height:1.65;box-shadow:0 8px 30px rgba(0,0,0,.3)}
+#notes b{color:#fff}#notes .time{color:#ff8fab;font-weight:700;margin-right:8px}
+#help{position:fixed;left:14px;bottom:12px;font-size:11.5px;color:var(--muted);z-index:20;opacity:.7}
+
+/* prompt bubbles & keyword chips */
+.bubble{position:relative;background:#f6f7fa;border:1px solid var(--line);border-radius:calc(var(--u)*1) calc(var(--u)*1) calc(var(--u)*1) calc(var(--u)*.2);
+  padding:calc(var(--u)*1.1) calc(var(--u)*1.4);font-size:calc(var(--u)*1.25);line-height:1.6;color:var(--ink2)}
+.bubble.sm{font-size:calc(var(--u)*1.15);padding:calc(var(--u)*.8) calc(var(--u)*1.4)}
+.bubble .ver{display:inline-block;font-size:calc(var(--u)*.85);font-weight:800;color:#fff;background:var(--red);border-radius:99px;padding:calc(var(--u)*.1) calc(var(--u)*.65);margin-right:calc(var(--u)*.7);vertical-align:.1em}
+.bubble.sm .ver{background:var(--ink2)}
+.kw{background:#f6f7fa;border:1px solid var(--line);border-radius:calc(var(--u)*.9);padding:calc(var(--u)*1.5) calc(var(--u)*1.7)}
+.kw h3{margin-bottom:calc(var(--u)*1)}
+.chips{display:flex;flex-wrap:wrap;gap:calc(var(--u)*.55)}
+.chips span{font-size:calc(var(--u)*1.12);background:#fff;border:1px solid var(--line);border-radius:99px;padding:calc(var(--u)*.3) calc(var(--u)*.9);color:var(--ink2)}
+@media print{#nav,#prog,#notes,#help{display:none}}
+</style>
+</head>
+<body>
+<div id="stage">
+
+<!-- 1. 표지 -->
+<section class="slide title" data-notes="<span class='time'>1분</span>인사. 오늘은 쿼리로 뽑은 위치 데이터를 지도로 시각화하는 방법을 공유합니다. 실제로 만든 지도 두 개를 띄워서 보여드리고, Claude를 활용해 각자 바로 만들어볼 수 있는 방법까지 이야기하겠습니다.">
+  <div class="kicker">DATA SHARING · 지도 시각화</div>
+  <h1>쿼리 결과를<br><span class="red">지도</span>로 바로 보기</h1>
+  <p class="lead" style="margin-top:calc(var(--u)*2)">H3 · OD 경로 지도와 Claude로 만드는 방법</p>
+  <div class="who">2026.10</div>
+  <svg class="hexart" viewBox="0 0 360 320" aria-hidden="true">
+    <defs><polygon id="hx" points="20,0 40,11.5 40,34.5 20,46 0,34.5 0,11.5"/></defs>
+    <g id="hexfield"></g>
+  </svg>
+</section>
+
+<!-- 2. 목차 -->
+<section class="slide" data-notes="<span class='time'>1분</span>순서 소개. 지도 세 개는 실제로 동작하는 화면이라 그 자리에서 같이 눌러볼 수 있습니다.">
+  <div class="kicker">AGENDA</div>
+  <h2>오늘 이야기</h2>
+  <div class="cols c4" style="margin-top:calc(var(--u)*3)">
+    <div class="card"><div class="step">01</div><h3>왜 지도인가</h3><p>표의 한계, H3 격자란</p></div>
+    <div class="card"><div class="step">02</div><h3>지도 데모 3개</h3><p>H3 육각형 · 픽업→배송 경로 · 인접 존 교차 범위</p></div>
+    <div class="card"><div class="step">03</div><h3>Claude로 만들기</h3><p>쿼리 → CSV → 요청 → 지도</p></div>
+    <div class="card"><div class="step">04</div><h3>팀별 활용</h3><p>우리 팀이라면 무엇을 칠할까</p></div>
+  </div>
+</section>
+
+<!-- 3. 표의 한계 -->
+<section class="slide" data-notes="<span class='time'>2분</span>지역별 표를 보면 부산이 높다 정도는 알 수 있음. 그런데 실제 액션은 '부산 어느 동네'에서 일어남. 같은 평균 안에 튀는 동네가 섞여 있는데 표로는 안 보임. 그래서 위치 단위로 보는 지도가 필요.">
+  <div class="kicker">WHY MAP</div>
+  <h2>표는 <span class="red">"얼마나"</span>는 알려주지만<br>"어디서"는 알려주지 않습니다</h2>
+  <div class="cols c64" style="align-items:start">
+    <table>
+      <tr><th>city_nm</th><th class="r">demand</th><th class="r">취소</th><th class="r">취소율</th></tr>
+      <tr><td>부산</td><td class="r">2,830</td><td class="r">168</td><td class="r"><b class="red">5.9%</b></td></tr>
+      <tr><td>경상</td><td class="r">4,524</td><td class="r">237</td><td class="r">5.2%</td></tr>
+      <tr><td>서울</td><td class="r">12,068</td><td class="r">509</td><td class="r">4.2%</td></tr>
+      <tr><td>경기</td><td class="r">17,833</td><td class="r">630</td><td class="r">3.5%</td></tr>
+      <tr><td class="muted">…</td><td></td><td></td><td></td></tr>
+    </table>
+    <div>
+      <ul class="clean">
+        <li><b>부산이 높다</b>는 건 알 수 있지만, 부산의 <b>어느 동네</b>인지는 모릅니다</li>
+        <li>같은 평균 안에 <b>값이 튀는 동네</b>가 섞여 있습니다</li>
+        <li>운영 액션(라이더 배치, 존 경계, 프로모션)은 <b>위치 단위</b>로 일어납니다</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- 4. H3 -->
+<section class="slide" data-notes="<span class='time'>3분</span>H3는 Uber가 만든 육각형 격자. 지구 전체를 육각형으로 나누고 칸마다 ID가 있음. 해상도 숫자가 클수록 칸이 작음. ID 앞 두 글자(88/89/8a)로 해상도 구분. 위경도 없이 ID 텍스트 하나만 있어도 지도에 그릴 수 있어서, 쿼리에서 GROUP BY h3 컬럼만 하면 바로 지도용 데이터가 됨.">
+  <div class="kicker">H3 101</div>
+  <h2>H3: 지도를 <span class="red">육각형 칸</span>으로 나누고 ID를 붙인 것</h2>
+  <div class="cols c2" style="align-items:center">
+    <div>
+      <table>
+        <tr><th>컬럼</th><th>한 칸 크기(변)</th><th>느낌</th></tr>
+        <tr><td><code>h3_res_8</code></td><td>약 460m</td><td>동네</td></tr>
+        <tr><td><b><code>h3_res_9</code></b></td><td><b>약 175m</b></td><td><b>블록 · 오늘 사용</b></td></tr>
+        <tr><td><code>h3_res_10</code></td><td>약 65m</td><td>건물 · 골목</td></tr>
+      </table>
+      <ul class="clean" style="margin-top:calc(var(--u)*2)">
+        <li>ID 예시 <code>8930e1c1117ffff</code> · 앞 두 글자로 해상도 구분 (88·89·8a)</li>
+        <li>좌표 없이 <b>ID 텍스트만으로</b> 지도에 그릴 수 있음</li>
+        <li>쿼리에서 <b>GROUP BY h3 컬럼</b>만 하면 지도용 데이터 완성</li>
+      </ul>
+    </div>
+    <svg viewBox="0 0 420 360" style="width:100%">
+      <g id="h3nest"></g>
+      <text x="210" y="350" text-anchor="middle" font-size="15" fill="#7a8191">큰 칸(res 8) 하나 ≈ 작은 칸(res 9) 7개</text>
+    </svg>
+  </div>
+</section>
+
+<!-- 5. LIVE 1 -->
+<section class="slide live" data-src="https://soogeunpark-web.github.io/map/order_h3_map_v6.html"
+  data-notes="<span class='time'>5분</span>보는 법: 색 = 취소율(failure ÷ demand), 평균 근처 주황 · 낮으면 파랑 · 높으면 빨강. 시연: ① 전체 → ② 서울만 체크 → 칸 클릭해서 팝업 → ③ 부산만 체크 → ④ 오른쪽 위에서 컬러 지도로 바꿔 동네 이름 보기. 다음 장은 위쪽 제목 줄 클릭 후 → 키.">
+  <div class="bar-top"><span class="tag">LIVE</span><span class="t">지도 ① H3 육각형 지도</span><span class="s">색 = 취소율 · 칸 클릭 = 숫자 · 왼쪽 = 지역 필터</span>
+    <a href="https://soogeunpark-web.github.io/map/order_h3_map_v6.html" target="_blank" rel="noopener">새 탭에서 열기 ↗</a></div>
+  <div class="loading">지도를 불러오는 중…</div>
+</section>
+
+<!-- 6. OD 지도 설명 -->
+<section class="slide" data-notes="<span class='time'>2분</span>첫 번째 지도가 '한 지점'을 칠했다면, 두 번째는 '두 지점을 잇는 선'. 픽업 좌표와 배송 좌표만 있으면 됨. 같은 데이터를 세 가지 방식으로 그릴 수 있음: 하나하나 선으로, 비슷한 흐름끼리 묶어서 굵기로, 한쪽 끝 기준으로 원으로. 그리고 원이나 선을 누르면 개별 주문까지 내려가 볼 수 있음.">
+  <div class="kicker">MAP ②</div>
+  <h2>두 지점을 <span class="red">선으로 잇는</span> OD 경로 지도</h2>
+  <div class="cols c3" style="gap:calc(var(--u)*2.4)">
+    <div class="card" style="padding:calc(var(--u)*1.6)">
+      <svg viewBox="0 0 300 170" style="width:100%;display:block;margin-bottom:calc(var(--u)*1)">
+        <rect width="300" height="170" rx="12" fill="#eef0f4"/>
+        <g fill="none" stroke-linecap="round">
+          <path d="M60 120 Q110 40 200 55" stroke="#d61f4f" stroke-width="2.5" opacity=".85"/>
+          <path d="M60 120 Q150 120 240 105" stroke="#d61f4f" stroke-width="2.5" opacity=".85"/>
+          <path d="M85 60 Q150 20 230 40" stroke="#d61f4f" stroke-width="2.5" opacity=".85"/>
+          <path d="M120 140 Q190 150 255 135" stroke="#d61f4f" stroke-width="2.5" opacity=".85"/>
+        </g>
+        <g fill="#151821"><circle cx="60" cy="120" r="5"/><circle cx="85" cy="60" r="5"/><circle cx="120" cy="140" r="5"/></g>
+        <g fill="#fff" stroke="#d61f4f" stroke-width="2.5"><circle cx="200" cy="55" r="5"/><circle cx="240" cy="105" r="5"/><circle cx="230" cy="40" r="5"/><circle cx="255" cy="135" r="5"/></g>
+      </svg>
+      <h3>① 주문 하나 = 선 하나</h3>
+      <p>● 픽업 → ○ 배송을 곡선으로. 선을 누르면 매장명·사유</p>
+    </div>
+    <div class="card" style="padding:calc(var(--u)*1.6)">
+      <svg viewBox="0 0 300 170" style="width:100%;display:block;margin-bottom:calc(var(--u)*1)">
+        <rect width="300" height="170" rx="12" fill="#eef0f4"/>
+        <g fill="none" stroke-linecap="round">
+          <path d="M70 110 Q140 40 230 60" stroke="#1f78b4" stroke-width="14" opacity=".85"/>
+          <path d="M70 110 Q160 140 240 125" stroke="#ec6a2c" stroke-width="7" opacity=".9"/>
+          <path d="M70 110 Q120 80 150 40" stroke="#c8143f" stroke-width="3.5" opacity=".9"/>
+        </g>
+        <circle cx="70" cy="110" r="7" fill="#151821"/>
+      </svg>
+      <h3>② 비슷한 흐름끼리 묶기</h3>
+      <p>격자끼리 묶어서 <b>굵기 = 주문량</b>, <b>색 = 지표</b></p>
+    </div>
+    <div class="card" style="padding:calc(var(--u)*1.6)">
+      <svg viewBox="0 0 300 170" style="width:100%;display:block;margin-bottom:calc(var(--u)*1)">
+        <rect width="300" height="170" rx="12" fill="#eef0f4"/>
+        <circle cx="95" cy="85" r="42" fill="#1f78b4" opacity=".75"/>
+        <circle cx="185" cy="60" r="24" fill="#f2b134" opacity=".85"/>
+        <circle cx="215" cy="120" r="16" fill="#c8143f" opacity=".85"/>
+        <circle cx="160" cy="130" r="10" fill="#4fa8c7" opacity=".85"/>
+      </svg>
+      <h3>③ 한쪽 끝 기준 히트맵</h3>
+      <p>픽업지 또는 배송지 기준 원. <b>크기 = 주문량</b>, <b>색 = 지표</b></p>
+    </div>
+  </div>
+  <div style="display:flex;gap:calc(var(--u)*2.4);align-items:center;margin-top:calc(var(--u)*2.4)">
+    <span class="tag b">필요한 컬럼</span>
+    <p style="font-size:calc(var(--u)*1.3)"><code>픽업 위도·경도</code> · <code>배송 위도·경도</code> · <code>성공/취소</code> &nbsp;<span class="muted">+ 주문번호 · 매장명이 있으면 클릭해서 개별 주문까지 확인</span></p>
+  </div>
+</section>
+
+<!-- 7. LIVE 2 -->
+<section class="slide live" data-src="https://soogeunpark-web.github.io/map/Yongsan-gu.html"
+  data-notes="<span class='time'>5분</span>시연: ① 첫 화면(주문 하나 = 선 하나) — 선 하나 클릭 → ② 집계 플로우 — 굵은 선 클릭 후 '자세히 보기' → 왼쪽 목록에서 주문 클릭하면 경로 강조 → ③ 히트맵 — 픽업지 기준 ↔ 배송지 기준 전환, 격자 크기 슬라이더 움직이기. 포인트는 '같은 데이터를 보는 방식만 바꿔서 다르게 그릴 수 있다'.">
+  <div class="bar-top"><span class="tag">LIVE</span><span class="t">지도 ② OD 경로 지도 (픽업 → 배송)</span><span class="s">선 → 묶은 흐름 → 히트맵 순서로 보기</span>
+    <a href="https://soogeunpark-web.github.io/map/Yongsan-gu.html" target="_blank" rel="noopener">새 탭에서 열기 ↗</a></div>
+  <div class="loading">지도를 불러오는 중…</div>
+</section>
+
+<!-- 지도 ③ 설명 -->
+<section class="slide" data-notes="<span class='time'>2분</span>세 번째는 칸이나 선이 아니라 '영역(폴리곤)'을 겹쳐 보는 지도. 존 확장을 검토할 때 메인 존과 인접한 사이드 존, 그리고 일정 거리의 버퍼 범위를 겹쳐서, 실제로 겹치는 교차 영역만 빨간색으로 뽑아냄. 표로는 '어디가 겹치는지'를 알 수 없어서 지도로 보는 게 가장 빠름.">
+  <div class="kicker">MAP ③</div>
+  <h2>영역을 <span class="red">겹쳐 보는</span> 인접 존 교차 범위 지도</h2>
+  <div class="cols c2" style="align-items:center">
+    <svg viewBox="0 0 520 340" style="width:100%">
+      <rect width="520" height="340" rx="16" fill="#eef0f4"/>
+      <path d="M70 90 L230 60 L285 150 L250 270 L95 285 L55 190 Z" fill="#1f78b4" fill-opacity=".18" stroke="#1f78b4" stroke-width="3"/>
+      <path d="M300 70 L455 95 L470 230 L380 290 L270 250 L255 160 Z" fill="#f2b134" fill-opacity=".22" stroke="#e09a12" stroke-width="3"/>
+      <path d="M70 90 L230 60 L285 150 L250 270 L95 285 L55 190 Z" fill="none" stroke="#7a8191" stroke-width="44" stroke-opacity=".16" stroke-linejoin="round"/>
+      <path d="M262 112 L290 152 L272 228 L258 248 L270 250 L255 160 Z" fill="#d61f4f" fill-opacity=".85" stroke="#d61f4f" stroke-width="2" stroke-linejoin="round"/>
+      <path d="M248 95 L300 70 L300 70 L262 112 Z" fill="#d61f4f" fill-opacity=".85"/>
+      <text x="140" y="180" text-anchor="middle" font-size="22" font-weight="800" fill="#1f78b4">메인 존</text>
+      <text x="380" y="180" text-anchor="middle" font-size="22" font-weight="800" fill="#b5780a">사이드 존</text>
+      <text x="300" y="322" text-anchor="middle" font-size="16" fill="#d61f4f" font-weight="700">교차지 = 버퍼와 사이드 존이 실제로 겹치는 곳</text>
+    </svg>
+    <div>
+      <div style="display:flex;flex-direction:column;gap:calc(var(--u)*1.1)">
+        <div style="display:flex;gap:calc(var(--u)*1);align-items:center"><span style="width:calc(var(--u)*2.2);height:calc(var(--u)*1.4);border-radius:4px;background:rgba(31,120,180,.25);border:2px solid #1f78b4;flex:none"></span><p><b>메인(원)</b> · 확장을 검토하는 기준 존</p></div>
+        <div style="display:flex;gap:calc(var(--u)*1);align-items:center"><span style="width:calc(var(--u)*2.2);height:calc(var(--u)*1.4);border-radius:4px;background:rgba(242,177,52,.3);border:2px solid #e09a12;flex:none"></span><p><b>사이드(원)</b> · 맞닿은 인접 존</p></div>
+        <div style="display:flex;gap:calc(var(--u)*1);align-items:center"><span style="width:calc(var(--u)*2.2);height:calc(var(--u)*1.4);border-radius:4px;background:rgba(122,129,145,.28);flex:none"></span><p><b>버퍼범위</b> · 메인 존 경계에서 넓힌 범위</p></div>
+        <div style="display:flex;gap:calc(var(--u)*1);align-items:center"><span style="width:calc(var(--u)*2.2);height:calc(var(--u)*1.4);border-radius:4px;background:#d61f4f;flex:none"></span><p><b>교차지</b> · 정확히 겹치는 영역 = 확장 후보</p></div>
+      </div>
+      <div class="card" style="margin-top:calc(var(--u)*2)"><p><b>칸 · 선</b>에 이어 세 번째 방식, <b>영역(폴리곤)</b>을 겹쳐서 "어디까지 넓힐 수 있나"를 보여줍니다</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- LIVE 3 -->
+<section class="slide live" data-src="https://soogeunpark-web.github.io/map/cross_zone_map.html"
+  data-notes="<span class='time'>4분</span>시연: ① 목록 열기(☰)에서 지역유형 필터 → 몇 개만 선택 → ② 빨간 교차지 클릭해서 '교차 영역 정보' 확인 → ③ 메인·사이드·버퍼가 어떻게 겹치는지 확대해서 보여주기. 포인트는 '겹치는 곳만 정확히 뽑아서 확장 후보를 바로 볼 수 있다'.">
+  <div class="bar-top"><span class="tag">LIVE</span><span class="t">지도 ③ 인접 존 교차 범위</span><span class="s">메인 · 사이드 · 버퍼 · <b style="color:var(--red)">교차지</b> · ☰ 목록에서 지역유형 필터</span>
+    <a href="https://soogeunpark-web.github.io/map/cross_zone_map.html" target="_blank" rel="noopener">새 탭에서 열기 ↗</a></div>
+  <div class="loading">지도를 불러오는 중…</div>
+</section>
+
+<!-- 8. Claude로 만드는 흐름 -->
+<section class="slide" data-notes="<span class='time'>2분</span>오늘 보여드린 지도는 코드를 직접 짜지 않고 Claude와 대화하면서 만들었습니다. 흐름은 네 단계. 핵심은 쿼리에서 위치 단위로 집계해서 CSV로 주는 것, 그리고 원하는 걸 말로 구체적으로 요청하는 것.">
+  <div class="kicker">HOW TO · CLAUDE</div>
+  <h2>코딩 없이 <span class="red">Claude와 대화</span>로 만들었습니다</h2>
+  <div class="cols c4" style="gap:calc(var(--u)*1.6);margin-top:calc(var(--u)*1)">
+    <div class="card" style="background:var(--blue-soft);border-color:transparent">
+      <div class="step" style="color:var(--blue)">STEP 1</div><h3>쿼리로 뽑기</h3>
+      <p>BigQuery에서 <b>위치 단위로 집계</b><br>(H3 칸 또는 픽업·배송 좌표)</p></div>
+    <div class="card">
+      <div class="step">STEP 2</div><h3>CSV 첨부 + 요청</h3>
+      <p>Claude에 CSV를 올리고<br><b>무엇을 · 어떻게</b> 칠할지 말하기</p></div>
+    <div class="card">
+      <div class="step">STEP 3</div><h3>보면서 다듬기</h3>
+      <p>"지도가 어두워", "팝업은 가볍게"<br>처럼 <b>한 번에 하나씩</b> 수정</p></div>
+    <div class="card" style="background:var(--red-soft);border-color:transparent">
+      <div class="step">STEP 4</div><h3>공유</h3>
+      <p>결과는 <b>HTML 파일 하나</b><br>GitHub Pages · 사내 드라이브</p></div>
+  </div>
+  <div class="cols c3" style="margin-top:calc(var(--u)*3)">
+    <div><h3>서버 · 설치 없음</h3><p>브라우저에서 바로 열리는 파일 한 장</p></div>
+    <div><h3>데이터만 바꿔 재사용</h3><p>"CSV 열기"로 새 쿼리 결과를 같은 지도에</p></div>
+    <div><h3>버전으로 남기기</h3><p>수정할 때마다 v1, v2, v3… 새 파일로 저장</p></div>
+  </div>
+</section>
+
+<!-- 9. STEP 1 쿼리 -->
+<section class="slide" data-notes="<span class='time'>2분</span>쿼리는 두 가지 형태만 기억하면 됨. 왼쪽은 칸 단위 집계(H3), 오른쪽은 주문 단위로 두 지점 좌표. 컬럼 이름은 자유지만 Claude에게 각 컬럼이 무슨 뜻인지 알려주면 됨. 위치 데이터를 다룰 때는 개인정보에 해당하는 좌표가 들어갈 수 있으니 공유 범위에 주의.">
+  <div class="kicker">STEP 1 · QUERY</div>
+  <h2>지도용 데이터는 <span class="red">두 가지 모양</span>이면 충분합니다</h2>
+  <div class="cols c2" style="align-items:start">
+    <div>
+      <h3><span class="tag">칸을 칠하는 지도</span> &nbsp;H3로 집계</h3>
+<pre style="margin-top:calc(var(--u)*.8)"><span class="k">SELECT</span>
+  city_nm,
+  h3_res_9,
+  <span class="k">COUNT</span>(*)  <span class="k">AS</span> demand,
+  <span class="k">COUNTIF</span>(order_result_cd = <span class="s">'success'</span>) <span class="k">AS</span> success_cnt,
+  <span class="k">COUNTIF</span>(order_result_cd = <span class="s">'failure'</span>) <span class="k">AS</span> failure_cnt
+<span class="k">FROM</span> <span class="c">`&lt;주문 테이블&gt;`</span>
+<span class="k">WHERE</span> <span class="c">/* 기간 · 조건 */</span>
+<span class="k">GROUP BY</span> 1, 2</pre>
+      <p style="margin-top:calc(var(--u)*.8);font-size:calc(var(--u)*1.15)">→ 한 행 = 육각형 한 칸</p>
+    </div>
+    <div>
+      <h3><span class="tag b">선을 잇는 지도</span> &nbsp;두 지점 좌표</h3>
+<pre style="margin-top:calc(var(--u)*.8)"><span class="k">SELECT</span>
+  order_no,
+  ST_Y(vendor_loc) <span class="k">AS</span> pickup_lat,
+  ST_X(vendor_loc) <span class="k">AS</span> pickup_lng,
+  ST_Y(order_loc)  <span class="k">AS</span> drop_lat,
+  ST_X(order_loc)  <span class="k">AS</span> drop_lng,
+  order_result_cd,  vendor_nm
+<span class="k">FROM</span> <span class="c">`&lt;주문 테이블&gt;`</span>
+<span class="k">WHERE</span> <span class="c">/* 존 · 기간 */</span></pre>
+      <p style="margin-top:calc(var(--u)*.8);font-size:calc(var(--u)*1.15)">→ 한 행 = 주문 하나 = 선 하나</p>
+    </div>
+  </div>
+</section>
+
+<!-- 10. STEP 2~3 요청 -->
+<section class="slide" data-notes="<span class='time'>3분</span>실제로 제가 Claude에게 보낸 요청입니다. 처음 요청에 계산식, 클릭 동작, 필터 위치를 구체적으로 적은 게 포인트. 그다음은 결과를 보면서 한 줄씩 고쳤습니다. 지도 배경이 안 나오는 문제처럼 원인을 모르는 것도 그대로 물어보면 원인과 대안을 같이 알려줌.">
+  <div class="kicker">STEP 2 · 3 · PROMPT</div>
+  <h2>실제로 이렇게 <span class="red">요청</span>했어요</h2>
+  <div class="cols c64" style="align-items:start">
+    <div style="display:flex;flex-direction:column;gap:calc(var(--u)*1)">
+      <div class="bubble"><span class="ver">처음 요청</span>CSV 파일을 열어서 지도에 <b>h3_res_9 컬럼 기준으로 취소율</b> 시각화를 만들어줘. 취소율은 <b>failure_cnt / demand × 100</b>에 %를 붙이면 돼. 칸을 <b>클릭하면 demand, success_cnt, failure_cnt, 취소율</b>이 가볍게 보였으면 좋겠어. <b>왼쪽 상단에 city_nm 체크박스</b>로 원하는 city만 보여주고 싶어.</div>
+      <div class="bubble sm"><span class="ver">다듬기</span>지도가 검은색인데 시각화하기 좋은 지도로 변경해줘</div>
+      <div class="bubble sm"><span class="ver">문제 해결</span>회사라서 그런지 계속 "API KEY REQUIRED"라고 나오네. 방법이 없을까?</div>
+      <div class="bubble sm"><span class="ver">참고 파일</span>예전에 작업했던 파일인데 여기서 지도 참고할 수 있어? <span class="muted">(+ index.html 첨부)</span></div>
+    </div>
+    <div>
+      <h3 style="margin-bottom:calc(var(--u)*1)">잘 되는 요청 팁</h3>
+      <ul class="clean">
+        <li><b>컬럼 뜻</b>을 알려주기<br><span class="muted">"h3_res_9는 배달지 기준 H3"</span></li>
+        <li><b>계산식</b>을 직접 적기<br><span class="muted">"failure_cnt / demand × 100"</span></li>
+        <li><b>동작</b>을 구체적으로<br><span class="muted">클릭하면 무엇을, 필터는 어디에</span></li>
+        <li><b>한 번에 하나씩</b> 고치기</li>
+        <li>안 되면 <b>화면에 보이는 그대로</b> 묻기</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- 11. 팀별 키워드 -->
+<section class="slide" data-notes="<span class='time'>3분</span>팀별로 지도에 칠해볼 만한 지표 키워드. 앞에서 본 두 가지 모양(칸 / 선) 중 하나로 뽑기만 하면 됨. 관심 있는 키워드가 있으면 같이 쿼리부터 맞춰보자고 제안.">
+  <div class="kicker">IDEAS</div>
+  <h2>우리 팀이라면 <span class="red">무엇을 칠할까</span></h2>
+  <div class="cols c3" style="gap:calc(var(--u)*1.8)">
+    <div class="kw"><h3>운영 · 라이더</h3><div class="chips"><span>배달시간</span><span>배차 지연</span><span>라이더 공급 부족</span><span>피크타임 수요</span><span>취소 사유 분포</span></div></div>
+    <div class="kw"><h3>영업 · VD</h3><div class="chips"><span>가게 밀집도</span><span>신규 입점 후보지</span><span>가게 vs 주문 수요</span><span>배달 반경</span></div></div>
+    <div class="kw"><h3>마케팅 · 프로모션</h3><div class="chips"><span>프로모션 전후 증감</span><span>쿠폰 사용 지역</span><span>신규 고객 유입</span><span>재주문율</span></div></div>
+    <div class="kw"><h3>존 · 물류 기획</h3><div class="chips"><span>존 경계 조정</span><span>크로스존 주문</span><span>픽업→배송 거리</span><span>OD 흐름</span></div></div>
+    <div class="kw"><h3>CS · 품질</h3><div class="chips"><span>클레임 다발 지역</span><span>오배송</span><span>연락 불가</span><span>지연 보상</span></div></div>
+    <div class="kw"><h3>전략 · BI</h3><div class="chips"><span>지역별 성장률</span><span>객단가</span><span>점유율</span><span>기간 비교</span></div></div>
+  </div>
+</section>
+
+<!-- 12. 마무리 -->
+<section class="slide title" data-notes="<span class='time'>1분 + Q&A</span>정리하고 질문 받기. 써보고 싶은 데이터가 있으면 같이 쿼리부터 맞춰보자고 제안.">
+  <div class="kicker">WRAP-UP</div>
+  <h1 style="font-size:calc(var(--u)*3.6)">위치 단위로 뽑으면<br><span class="red">지도는 금방</span> 만들어집니다</h1>
+  <ul class="clean" style="margin-top:calc(var(--u)*2.6);max-width:calc(var(--u)*56)">
+    <li>칸을 칠하려면 <b>H3로 집계</b>, 흐름은 <b>두 지점 좌표</b>, 범위는 <b>영역(폴리곤)</b></li>
+    <li>CSV + 구체적인 요청이면 Claude가 지도 HTML을 만들어 줌</li>
+    <li>결과는 파일 한 장, 데이터만 바꿔서 계속 재사용</li>
+  </ul>
+  <p class="lead" style="margin-top:calc(var(--u)*3)"><b>Q&amp;A</b> &nbsp;<span class="muted">— 써보고 싶은 데이터가 있으면 같이 맞춰봐요</span></p>
+  <svg class="hexart" viewBox="0 0 360 320" aria-hidden="true" style="opacity:.55"><g class="hexfield2"></g></svg>
+</section>
+
+</div>
+
+<div id="prog"></div>
+<div id="help">← → 이동 · F 전체화면 · N 발표 메모</div>
+<div id="nav"><button id="prev" title="이전 (←)">◀</button><span id="cnt"></span><button id="next" title="다음 (→)">▶</button><button id="nbtn" title="발표 메모 (N)">메모</button><button id="fbtn" title="전체화면 (F)">⛶</button></div>
+<div id="notes"></div>
+
+<script>
+// ---------- stage sizing (transform 없이 실제 크기로 맞춰 지도 클릭 좌표가 어긋나지 않게) ----------
+const stage=document.getElementById('stage');
+function fit(){
+  const W=innerWidth,H=innerHeight,ratio=16/9;
+  let w=Math.min(W*.98,H*.96*ratio), h=w/ratio;
+  if(document.fullscreenElement){ w=Math.min(W,H*ratio); h=w/ratio; }
+  stage.style.width=w+'px'; stage.style.height=h+'px';
+  document.documentElement.style.setProperty('--u',(w/100)+'px');
+}
+addEventListener('resize',fit); fit();
+
+// ---------- decorative hex fields ----------
+function hexField(g, cols, rows, seed){
+  const pal=['#1f78b4','#4fa8c7','#f2b134','#ec6a2c','#c8143f'];
+  let s=seed; const rnd=()=>{s=(s*9301+49297)%233280;return s/233280;};
+  let out='';
+  for(let r=0;r<rows;r++)for(let c=0;c<cols;c++){
+    const x=c*42+(r%2?21:0), y=r*36, v=rnd();
+    if(v<.22) continue;
+    const t=Math.min(4,Math.floor(Math.pow(rnd(),2.2)*5));
+    out+=`<use href="#hx" x="${x}" y="${y}" fill="${pal[t]}" opacity="${(.35+rnd()*.6).toFixed(2)}"/>`;
+  }
+  g.innerHTML=out;
+}
+hexField(document.getElementById('hexfield'),8,8,7);
+hexField(document.querySelector('.hexfield2'),8,8,21);
+
+// H3 nesting illustration: res 8 한 칸 안의 res 9 일곱 칸 (aperture 7, 약 19.1° 회전)
+(function(){
+  const g=document.getElementById('h3nest'); const cx=210,cy=165,r=56,R=r*Math.sqrt(7),rot=Math.atan(Math.sqrt(3)/5)*180/Math.PI;
+  const hex=(x,y,s,off)=>Array.from({length:6},(_,i)=>{const a=Math.PI/180*(off+60*i);return (x+s*Math.cos(a)).toFixed(1)+','+(y+s*Math.sin(a)).toFixed(1)}).join(' ');
+  let h=`<polygon points="${hex(cx,cy,R,30+rot)}" fill="#fde7ee" stroke="#d61f4f" stroke-width="3" stroke-linejoin="round"/>`;
+  const fills=['#1f78b4','#4fa8c7','#f2b134','#4fa8c7','#1f78b4','#ec6a2c','#4fa8c7'];
+  const ctr=[[0,0]].concat(Array.from({length:6},(_,k)=>{const a=Math.PI/180*(60*k+rot);return [Math.sqrt(3)*r*Math.cos(a),Math.sqrt(3)*r*Math.sin(a)]}));
+  ctr.forEach(([dx,dy],i)=>{h+=`<polygon points="${hex(cx+dx,cy+dy,r-1.5,30+rot)}" fill="${fills[i]}" opacity=".88" stroke="#fff" stroke-width="2.5" stroke-linejoin="round"/>`;});
+  h+=`<text x="${cx+R*0.62}" y="${cy-R*0.92}" font-size="17" font-weight="800" fill="#d61f4f">res 8</text>`;
+  h+=`<text x="${cx}" y="${cy+6}" text-anchor="middle" font-size="16" font-weight="700" fill="#fff">res 9</text>`;
+  g.innerHTML=h;
+})();
+
+// ---------- navigation ----------
+const slides=[...document.querySelectorAll('.slide')];
+const notes=document.getElementById('notes');
+let cur=0, showNotes=false;
+function go(i){
+  i=Math.max(0,Math.min(slides.length-1,i));
+  slides[cur].classList.remove('active'); cur=i; const s=slides[cur]; s.classList.add('active');
+  // 지도 슬라이드는 처음 열 때만 iframe 로드 (한 번 로드한 지도는 상태 유지)
+  if(s.dataset.src && !s.querySelector('iframe')){
+    const f=document.createElement('iframe'); f.src=s.dataset.src; f.loading='eager';
+    f.setAttribute('allow','fullscreen'); f.title=s.querySelector('.t').textContent;
+    f.onload=()=>{const l=s.querySelector('.loading'); if(l) l.remove();};
+    s.appendChild(f);
+  }
+  document.body.classList.toggle('onlive',!!s.dataset.src);
+  document.getElementById('cnt').textContent=`${cur+1} / ${slides.length}`;
+  document.getElementById('prog').style.width=((cur+1)/slides.length*100)+'%';
+  notes.innerHTML=s.dataset.notes||'';
+  notes.style.display=showNotes&&s.dataset.notes?'block':'none';
+  history.replaceState(null,'','#'+(cur+1));
+}
+function toggleNotes(){ showNotes=!showNotes; notes.style.display=showNotes&&slides[cur].dataset.notes?'block':'none'; }
+function toggleFS(){ document.fullscreenElement?document.exitFullscreen():document.documentElement.requestFullscreen(); }
+document.addEventListener('fullscreenchange',fit);
+document.getElementById('prev').onclick=()=>go(cur-1);
+document.getElementById('next').onclick=()=>go(cur+1);
+document.getElementById('nbtn').onclick=toggleNotes;
+document.getElementById('fbtn').onclick=toggleFS;
+addEventListener('keydown',e=>{
+  if(['ArrowRight','PageDown',' '].includes(e.key)){e.preventDefault();go(cur+1);}
+  else if(['ArrowLeft','PageUp'].includes(e.key)){e.preventDefault();go(cur-1);}
+  else if(e.key==='Home')go(0); else if(e.key==='End')go(slides.length-1);
+  else if(e.key==='f'||e.key==='F')toggleFS();
+  else if(e.key==='n'||e.key==='N')toggleNotes();
+});
+// 지도(iframe)를 조작하면 키보드 포커스가 지도로 들어감 → 지도 밖(위쪽 제목 줄)을 클릭하면 다시 ← → 사용 가능
+document.querySelectorAll('.live .bar-top').forEach(b=>b.addEventListener('click',e=>{ if(e.target.tagName!=='A') window.focus(); }));
+// 일반 슬라이드 클릭 = 다음 장
+stage.addEventListener('click',e=>{ if(!slides[cur].dataset.src && !e.target.closest('a,button,pre')) go(cur+1); });
+go(Math.max(0,(parseInt(location.hash.slice(1))||1)-1));
+</script>
+</body>
+</html>
